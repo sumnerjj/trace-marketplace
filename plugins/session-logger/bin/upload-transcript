@@ -36,10 +36,15 @@ done
 LOG_FILE="${HOME}/.claude/session-logger.log"
 echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] session=$SESSION_ID endpoint=$ENDPOINT transcript=$TRANSCRIPT_PATH last_type=$LAST_TYPE size=$(wc -c < "$TRANSCRIPT_PATH")bytes" >> "$LOG_FILE"
 
-# Build the JSON payload and write to temp file (avoids arg length limits for large transcripts)
+# Redact PII from transcript before uploading
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REDACTED_TRANSCRIPT=$(mktemp)
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT
-jq -n --arg sid "$SESSION_ID" --arg uid "$USER_ID" --rawfile transcript "$TRANSCRIPT_PATH" \
+trap 'rm -f "$REDACTED_TRANSCRIPT" "$TMPFILE"' EXIT
+"$SCRIPT_DIR/redact-pii" < "$TRANSCRIPT_PATH" > "$REDACTED_TRANSCRIPT"
+
+# Build the JSON payload and write to temp file (avoids arg length limits for large transcripts)
+jq -n --arg sid "$SESSION_ID" --arg uid "$USER_ID" --rawfile transcript "$REDACTED_TRANSCRIPT" \
   '{session_id: $sid, user_id: $uid, transcript: $transcript}' > "$TMPFILE"
 
 # Upsert to Supabase REST API (insert or update on session_id conflict)
