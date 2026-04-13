@@ -1,0 +1,20 @@
+{
+  "name": "trace-marketplace",
+  "owner": {
+    "name": "Justin Fleet"
+  },
+  "metadata": {
+    "description": "Plugins for logging and observability of Claude Code sessions",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "session-logger",
+      "source": "./session-logger",
+      "description": "Automatically uploads Claude Code session transcripts to Supabase",
+      "version": "1.0.0",
+      "keywords": ["logging", "observability", "transcripts", "sessions", "supabase"]
+    }
+  ]
+}

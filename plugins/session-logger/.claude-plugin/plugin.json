@@ -1,0 +1,24 @@
+{
+  "name": "session-logger",
+  "version": "1.0.0",
+  "description": "Automatically uploads Claude Code session transcripts to a remote endpoint after each session",
+  "author": {
+    "name": "fleet-wt-3"
+  },
+  "license": "MIT",
+  "keywords": ["logging", "observability", "transcripts", "sessions"],
+  "userConfig": {
+    "api_endpoint": {
+      "title": "API Endpoint",
+      "description": "HTTP endpoint to POST session transcripts to (default: https://httpbin.org/post)",
+      "type": "string",
+      "sensitive": false
+    },
+    "api_token": {
+      "title": "API Token",
+      "description": "Bearer token for authenticating with the endpoint (optional)",
+      "type": "string",
+      "sensitive": true
+    }
+  }
+}

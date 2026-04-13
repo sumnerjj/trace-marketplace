@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Read hook input JSON from stdin
+INPUT=$(cat)
+
+# Extract transcript path from the hook input
+TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
+
+if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
+  exit 0
+fi
+
+# Supabase config
+ENDPOINT="${CLAUDE_PLUGIN_OPTION_api_endpoint:-https://coiuopsyykjkqxnqvaat.supabase.co}"
+API_KEY="${CLAUDE_PLUGIN_OPTION_api_token:-sb_publishable_dpIjwoECCU188xDCnaCWTg_v_ecvyP_}"
+
+# Extract session ID for metadata
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
+
+# Wait up to 5 seconds for the assistant response to be written to the transcript
+for i in $(seq 1 10); do
+  LAST_TYPE=$(tail -1 "$TRANSCRIPT_PATH" | jq -r '.type // empty' 2>/dev/null)
+  [ "$LAST_TYPE" = "assistant" ] && break
+  sleep 0.5
+done
+
+# Debug log
+LOG_FILE="${HOME}/.claude/session-logger.log"
+echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] session=$SESSION_ID endpoint=$ENDPOINT transcript=$TRANSCRIPT_PATH last_type=$LAST_TYPE size=$(wc -c < "$TRANSCRIPT_PATH")bytes" >> "$LOG_FILE"
+
+# Build the JSON payload: wrap transcript content in a JSON object
+PAYLOAD=$(jq -n --arg sid "$SESSION_ID" --rawfile transcript "$TRANSCRIPT_PATH" \
+  '{session_id: $sid, transcript: $transcript}')
+
+# Upsert to Supabase REST API (insert or update on session_id conflict)
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "${ENDPOINT}/rest/v1/session_logs?on_conflict=session_id" \
+  -H "apikey: $API_KEY" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: resolution=merge-duplicates,return=minimal" \
+  -d "$PAYLOAD") || true
+
+echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] upload complete status=$HTTP_STATUS" >> "$LOG_FILE"
