@@ -10,7 +10,22 @@ If no code was provided in "$ARGUMENTS", ask the user for their link code. Tell 
 Once you have the code, run this command to link:
 
 ```bash
-PLUGIN_USER_ID=$(cat "${CLAUDE_PLUGIN_DATA:-${HOME}/.claude}/session-logger-user-id" 2>/dev/null || echo "unknown")
+# Read user_id from the canonical location, with fallbacks for older installs
+if [ -f "${HOME}/.trace/user-id" ]; then
+  PLUGIN_USER_ID=$(cat "${HOME}/.trace/user-id")
+elif [ -f "${CLAUDE_PLUGIN_DATA:-/dev/null}/session-logger-user-id" ]; then
+  PLUGIN_USER_ID=$(cat "${CLAUDE_PLUGIN_DATA}/session-logger-user-id")
+elif [ -f "${HOME}/.claude/session-logger-user-id" ]; then
+  PLUGIN_USER_ID=$(cat "${HOME}/.claude/session-logger-user-id")
+else
+  PLUGIN_USER_ID=""
+fi
+
+if [ -z "$PLUGIN_USER_ID" ]; then
+  echo "ERROR: No plugin user ID found. Run a session first to generate one, then try linking again."
+  exit 1
+fi
+
 curl -s -X POST https://trace-web-app.fly.dev/api/link/claim \
   -H "Content-Type: application/json" \
   -d "{\"code\": \"$ARGUMENTS\", \"plugin_user_id\": \"$PLUGIN_USER_ID\"}"
