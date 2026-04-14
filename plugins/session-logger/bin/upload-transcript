@@ -43,9 +43,18 @@ TMPFILE=$(mktemp)
 trap 'rm -f "$REDACTED_TRANSCRIPT" "$TMPFILE"' EXIT
 "$SCRIPT_DIR/redact-pii" < "$TRANSCRIPT_PATH" > "$REDACTED_TRANSCRIPT"
 
+# Compute session stats from the redacted transcript
+LINE_COUNT=$(wc -l < "$REDACTED_TRANSCRIPT" | tr -d ' ')
+MESSAGE_COUNT=$(grep -c '"type":"user"\|"type":"assistant"' "$REDACTED_TRANSCRIPT" || true)
+TOOL_COUNT=$(grep -c '"type":"tool_use"\|"tool_name"' "$REDACTED_TRANSCRIPT" || true)
+ERROR_COUNT=$(grep -c '"type":"system","subtype":"error"\|PostToolUseFailure\|"error"' "$REDACTED_TRANSCRIPT" || true)
+
 # Build the JSON payload and write to temp file (avoids arg length limits for large transcripts)
-jq -n --arg sid "$SESSION_ID" --arg uid "$USER_ID" --rawfile transcript "$REDACTED_TRANSCRIPT" \
-  '{session_id: $sid, user_id: $uid, transcript: $transcript}' > "$TMPFILE"
+jq -n --arg sid "$SESSION_ID" --arg uid "$USER_ID" \
+  --argjson lc "$LINE_COUNT" --argjson mc "$MESSAGE_COUNT" \
+  --argjson tc "$TOOL_COUNT" --argjson ec "$ERROR_COUNT" \
+  --rawfile transcript "$REDACTED_TRANSCRIPT" \
+  '{session_id: $sid, user_id: $uid, transcript: $transcript, platform: "claude-code", line_count: $lc, message_count: $mc, tool_count: $tc, error_count: $ec}' > "$TMPFILE"
 
 # Upsert to Supabase REST API (insert or update on session_id conflict)
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
