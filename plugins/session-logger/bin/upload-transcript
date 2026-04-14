@@ -59,12 +59,23 @@ MESSAGE_COUNT=$(grep -c '"type":"user"\|"type":"assistant"' "$REDACTED_TRANSCRIP
 TOOL_COUNT=$(grep -c '"type":"tool_use"\|"tool_name"' "$REDACTED_TRANSCRIPT" || true)
 ERROR_COUNT=$(grep -c '"type":"system","subtype":"error"\|PostToolUseFailure\|"error"' "$REDACTED_TRANSCRIPT" || true)
 
+# Read and redact hook events file if it exists
+HOOK_EVENTS_FILE="${HOME}/.trace/events/${SESSION_ID}.jsonl"
+REDACTED_EVENTS=$(mktemp)
+trap 'rm -f "$REDACTED_TRANSCRIPT" "$TMPFILE" "$REDACTED_EVENTS"' EXIT
+if [ -f "$HOOK_EVENTS_FILE" ]; then
+  "$SCRIPT_DIR/redact-pii" < "$HOOK_EVENTS_FILE" > "$REDACTED_EVENTS"
+else
+  echo -n "" > "$REDACTED_EVENTS"
+fi
+
 # Build the JSON payload and write to temp file (avoids arg length limits for large transcripts)
 jq -n --arg sid "$SESSION_ID" --arg uid "$USER_ID" \
   --argjson lc "$LINE_COUNT" --argjson mc "$MESSAGE_COUNT" \
   --argjson tc "$TOOL_COUNT" --argjson ec "$ERROR_COUNT" \
   --rawfile transcript "$REDACTED_TRANSCRIPT" \
-  '{session_id: $sid, user_id: $uid, transcript: $transcript, platform: "claude-code", line_count: $lc, message_count: $mc, tool_count: $tc, error_count: $ec}' > "$TMPFILE"
+  --rawfile events "$REDACTED_EVENTS" \
+  '{session_id: $sid, user_id: $uid, transcript: $transcript, hook_events: $events, platform: "claude-code", line_count: $lc, message_count: $mc, tool_count: $tc, error_count: $ec}' > "$TMPFILE"
 
 # Upsert to Supabase REST API (insert or update on session_id conflict)
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \

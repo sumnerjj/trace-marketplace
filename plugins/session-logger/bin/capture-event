@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Reads a hook event JSON from stdin and appends it to a per-session events log
+# with the event type and timestamp prefixed. Used by the plugin to capture
+# PermissionRequest, PermissionDenied, PostToolUseFailure, etc.
+
+EVENT_TYPE="${1:-unknown}"
+INPUT=$(cat)
+
+# Extract session_id from the hook input
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null || echo "unknown")
+
+EVENTS_DIR="${HOME}/.trace/events"
+mkdir -p "$EVENTS_DIR"
+EVENTS_FILE="${EVENTS_DIR}/${SESSION_ID}.jsonl"
+
+# Wrap the input with metadata and append one JSON line
+echo "$INPUT" | jq -c --arg et "$EVENT_TYPE" --arg ts "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+  '. + {_event_type: $et, _captured_at: $ts}' >> "$EVENTS_FILE"
