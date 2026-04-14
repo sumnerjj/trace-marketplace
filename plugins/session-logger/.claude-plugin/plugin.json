@@ -1,6 +1,6 @@
 {
   "name": "session-logger",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Automatically uploads Claude Code session transcripts to a remote endpoint after each session",
   "author": {
     "name": "fleet-wt-3"

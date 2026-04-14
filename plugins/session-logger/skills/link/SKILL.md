@@ -31,6 +31,30 @@ curl -s -X POST https://trace-web-app.fly.dev/api/link/claim \
   -d "{\"code\": \"$ARGUMENTS\", \"plugin_user_id\": \"$PLUGIN_USER_ID\"}"
 ```
 
-If the response contains "Linked successfully" or "Already linked", tell the user they're all set and their sessions will now appear in their Trace dashboard at https://trace-web-app.fly.dev/dashboard
+If the response contains "Linked successfully" or "Already linked":
+
+1. Tell the user their account is linked and new sessions will appear in their Trace dashboard at https://trace-web-app.fly.dev/dashboard automatically.
+
+2. Then check whether they have past sessions that could be uploaded:
+
+   ```bash
+   if [ -d "${HOME}/.claude/projects" ]; then
+     PAST_COUNT=$(find "${HOME}/.claude/projects" -type f -name "*.jsonl" 2>/dev/null | wc -l | tr -d ' ')
+     echo "Found $PAST_COUNT past transcripts"
+   fi
+   ```
+
+3. If past transcripts exist, ask the user: *"You have N past Claude Code sessions on this machine. Would you like to upload them to Trace too? They'll go through the same PII redaction. (y/n)"*
+
+4. If they say yes, start the backfill in the background:
+
+   ```bash
+   nohup "${CLAUDE_PLUGIN_ROOT}/bin/backfill-transcripts" > /dev/null 2>&1 &
+   echo "Backfill started. Progress at ~/.trace/backfill.log"
+   ```
+
+   Tell them it paces at ~1 session/second and they can monitor with `tail -f ~/.trace/backfill.log`, and that they can always trigger it later with `/session-logger:import-past`.
+
+5. If they say no, just tell them they can run `/session-logger:import-past` later if they change their mind.
 
 If the response contains an error, show the error message and suggest they generate a new code at https://trace-web-app.fly.dev/link
