@@ -18,10 +18,20 @@ API_KEY="${CLAUDE_PLUGIN_OPTION_api_token:-sb_publishable_dpIjwoECCU188xDCnaCWTg
 # Extract session ID for metadata
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 
-# Generate or read persistent user ID
-USER_ID_FILE="${CLAUDE_PLUGIN_DATA:-${HOME}/.claude}/session-logger-user-id"
+# Generate or read persistent user ID (always use a fixed path so the ID
+# survives plugin reinstalls and doesn't change between install methods)
+USER_ID_DIR="${HOME}/.trace"
+USER_ID_FILE="${USER_ID_DIR}/user-id"
 if [ ! -f "$USER_ID_FILE" ]; then
-  echo "${USER:-unknown}:$(uuidgen)" > "$USER_ID_FILE"
+  mkdir -p "$USER_ID_DIR"
+  # Migrate from old locations if they exist
+  if [ -f "${HOME}/.claude/session-logger-user-id" ]; then
+    cp "${HOME}/.claude/session-logger-user-id" "$USER_ID_FILE"
+  elif [ -f "${CLAUDE_PLUGIN_DATA:-/dev/null}/session-logger-user-id" ]; then
+    cp "${CLAUDE_PLUGIN_DATA}/session-logger-user-id" "$USER_ID_FILE"
+  else
+    echo "${USER:-unknown}:$(uuidgen)" > "$USER_ID_FILE"
+  fi
 fi
 USER_ID=$(cat "$USER_ID_FILE")
 
